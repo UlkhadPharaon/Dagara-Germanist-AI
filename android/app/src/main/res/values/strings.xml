@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Dagara Germanist AI</string>
+    <string name="title_activity_main">Dagara Germanist AI</string>
+    <string name="package_name">com.dagaragermanist.app</string>
+    <string name="custom_url_scheme">com.dagaragermanist.app</string>
+</resources>
