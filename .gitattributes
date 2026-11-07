@@ -1,0 +1,20 @@
+# Normalise line endings across the repository.
+#
+# Without this file, a Windows checkout converts text files to CRLF while the
+# project (and Prettier's `endOfLine: 'lf'`) expects LF, so every re-save by an
+# editor shows the whole tree as modified.
+#   - stored as LF in the repository
+#   - checked out as LF everywhere, including on Windows
+
+* text=auto eol=lf
+
+# Binary assets must never be rewritten.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.jar binary
+*.apk binary
+*.aab binary

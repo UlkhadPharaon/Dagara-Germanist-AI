@@ -9,6 +9,19 @@ with `;` separators, not `&&`).
 
 ---
 
+## Round 4 — final audit & housekeeping (2026-11-07, night)
+
+| Item | Status | Evidence |
+|------|--------|----------|
+| Unused dependencies removed | ✅ Done | `@google/genai`, `html2canvas`, `html2pdf.js` — 0 imports each, 17 runtime deps now (was 20) |
+| `README.md` created | ✅ Done | Documents the five phases, resources, BYOK providers, commands, and the Android prerequisites |
+| Line-ending churn fixed | ✅ Done | `.gitattributes` added (`* text=auto eol=lf`) — an external editor had rewritten 83 tracked files with CRLF while Prettier requires LF; the new attributes absorbed them and keep the tree stable |
+| Final gates re-run | ✅ Done | typecheck 0 · lint 0/0 · format clean · **163 tests pass** · coverage **75.78 %** · build 18 s |
+| App verified in Chrome | ✅ Done | all six tabs render, no `role="alert"`, documents button + AI key button present, localStorage rounds-trip, no console errors |
+| Landing page verified in Chrome | ✅ Done | 12 sections, FCFA prices (0 / 3 000 / 15 000–30 000), Orange Money & Moov Money note, JSON-LD, no console errors |
+
+---
+
 ## Round 3 — Bring your own API key (2026-11-07, evening)
 
 | Request | Status | Evidence |
