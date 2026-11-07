@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+/* Landing page tokens. Kept in CSS (not a JS config) so the page stays a
+   dependency-free static bundle. */
+@theme {
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
+}

@@ -1,0 +1,36 @@
+{
+  "name": "Dagara Germanist AI for Inspector",
+  "short_name": "Dagara",
+  "description": "Assistant IA pour la recherche en didactique de l'allemand au Burkina Faso.",
+  "lang": "fr",
+  "dir": "ltr",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#059669",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nouveau projet",
+      "short_name": "Nouveau",
+      "url": "./?new=1"
+    }
+  ]
+}

@@ -1,8 +1,31 @@
+# Dependencies
 node_modules/
-build/
+
+# Build output
 dist/
+build/
 coverage/
-.DS_Store
-*.log
+
+# Android / Gradle build outputs and local SDK config
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+android/app/debug/
+*.apk
+*.aab
+
+# Test reports
+test-results/
+playwright-report/
+
+# Environment (values never committed; the template is kept)
 .env*
 !.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

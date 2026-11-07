@@ -1,5 +1,12 @@
 {
 	"appId": "com.dagaragermanist.app",
 	"appName": "Dagara Germanist AI",
-	"webDir": "dist"
+	"webDir": "dist",
+	"android": {
+		"allowMixedContent": false,
+		"webContentsDebuggingEnabled": false
+	},
+	"server": {
+		"androidScheme": "https"
+	}
 }

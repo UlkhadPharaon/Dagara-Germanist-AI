@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+android/
+coverage/
+playwright-report/
+test-results/
+
+# Generated / vendored
+landing/assets/tailwind.css
+package-lock.json
+
+# Local scratch
+*.local
+.DS_Store
+
+# Client-provided reference documents: read-only inputs, never reformatted.
+TO_READ/
+PROGRESS.md
+TECHNICAL_REFERENCE.md
+FINAL_ENGINEERING_REPORT.md

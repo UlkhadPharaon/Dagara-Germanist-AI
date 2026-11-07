@@ -20,7 +20,7 @@ Ce projet a été pré-configuré avec **Capacitor** pour être transformé en a
    npm run build:apk
    ```
 
-*(Note pour les utilisateurs Windows : si la commande échoue à cause de `./gradlew`, allez dans le dossier `android` et tapez `gradlew.bat assembleDebug`)*
+_(Note pour les utilisateurs Windows : si la commande échoue à cause de `./gradlew`, allez dans le dossier `android` et tapez `gradlew.bat assembleDebug`)_
 
 ## Où trouver le fichier APK ?
 

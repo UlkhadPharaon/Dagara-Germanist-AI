@@ -36,6 +36,28 @@ export interface HistoryLog {
   timestamp: number;
 }
 
+/** How a resource entered the project. */
+export type ResourceKind = 'fichier' | 'note';
+
+/**
+ * A user-supplied document or note attached to a project.
+ *
+ * `content` is the extracted plain text: it is the only thing the AI layer ever
+ * sees, so files are processed once on import and then stored as text.
+ */
+export interface ProjectResource {
+  id: string;
+  name: string;
+  kind: ResourceKind;
+  content: string;
+  /** Bytes, for files only. */
+  size?: number;
+  mimeType?: string;
+  createdAt: number;
+  /** Unticked resources stay in the library but are not sent to the model. */
+  enabled: boolean;
+}
+
 export interface ProjectData {
   id: string;
   name: string;
@@ -54,4 +76,19 @@ export interface ProjectData {
   analyses: AnalysisResult[];
   bibliography?: BibliographyEntry[];
   language?: 'fr' | 'de';
+  /** User-supplied documents and notes used as AI context. */
+  resources?: ProjectResource[];
+}
+
+/**
+ * Patch function handed down to every phase component. Phases never own the
+ * project list — they only describe what changed (the persistence layer then
+ * debounces, validates and writes through to the active storage backend).
+ */
+export type ProjectUpdater = (updates: Partial<ProjectData>) => void;
+
+/** Props shared by all five phase components. */
+export interface PhaseProps {
+  project: ProjectData;
+  setProject: ProjectUpdater;
 }

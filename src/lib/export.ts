@@ -20,7 +20,7 @@ export const exportToWord = (htmlContent: string, filename: string) => {
     <body>${htmlContent}</body>
     </html>
   `;
-  
+
   const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dagara Germanist AI for Inspector</title>
+    <meta
+      name="description"
+      content="Assistant IA pour la recherche en didactique de l'allemand au Burkina Faso : cadrage, outils de collecte, analyse et bibliographie."
+    />
+    <meta name="theme-color" content="#059669" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.json" />
     <script>
       // Fix for "Cannot set property fetch of #<Window> which has only a getter"
       try {
@@ -11,39 +18,45 @@
         Object.defineProperty(window, 'fetch', {
           configurable: true,
           enumerable: true,
-          get: function() { return originalFetch; },
-          set: function(val) { 
+          get: function () {
+            return originalFetch;
+          },
+          set: function (val) {
             Object.defineProperty(window, 'fetch', {
               value: val,
               writable: true,
               configurable: true,
-              enumerable: true
+              enumerable: true,
             });
-          }
+          },
         });
-        
+
         Object.defineProperty(globalThis, 'fetch', {
           configurable: true,
           enumerable: true,
-          get: function() { return originalFetch; },
-          set: function(val) { 
+          get: function () {
+            return originalFetch;
+          },
+          set: function (val) {
             Object.defineProperty(globalThis, 'fetch', {
               value: val,
               writable: true,
               configurable: true,
-              enumerable: true
+              enumerable: true,
             });
-          }
+          },
         });
       } catch (e) {
         console.error('Failed to patch fetch:', e);
       }
     </script>
-    <script type="module" crossorigin src="./assets/index-BYSWvjBi.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-C6JfBJdC.css">
+    <script type="module" crossorigin src="./assets/index-DAhRGSUl.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/motion-DvxxRAnp.js">
+    <link rel="modulepreload" crossorigin href="./assets/charts-Clbmncmn.js">
+    <link rel="modulepreload" crossorigin href="./assets/markdown-CVX09Koh.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-DrdTCyUI.css">
   </head>
   <body>
     <div id="root"></div>
   </body>
 </html>
-
