@@ -74,9 +74,20 @@ supabase/migrations/          Database schema (Phase 2)
 
 ## 4. AI layer
 
-Proxy path: `/api/nvidia/chat/completions` (OpenAI-compatible body).
-Model list lives in `src/lib/constants.ts` → `AI_MODELS`; the selected model is
-persisted under `dagara-ai-model` and read by `getSelectedModel()`.
+### Two modes
+
+| Mode | Trigger | Where the request goes |
+|------|---------|------------------------|
+| **Default** | no personal key | the app's `/api/nvidia` proxy (Vite plugin in dev, `api/nvidia/[...path].ts` Edge function on Vercel), which holds the key server-side |
+| **BYOK** | provider + key + model configured | **straight from the browser to the provider** — the key is never sent to our servers |
+
+The BYOK configuration lives in `localStorage` (`dagara-ai-model:byok`) and is
+read through `src/lib/ai-config.ts`. Removing the key restores default mode; the
+header then shows the bundled model selector again.
+
+Proxy path: `/api/nvidia/chat/completions` (OpenAI-compatible body). The
+bundled model list lives in `src/lib/constants.ts` → `AI_MODELS` and is
+persisted under `dagara-ai-model`; the BYOK model comes from the stored config.
 
 Retry policy (`RETRY_POLICY`): exponential backoff, max 3 retries, 1 s base,
 15 s cap, jitter. JSON generation retries up to
@@ -87,6 +98,30 @@ Every business function validates its payload before returning it
 (`generateCadrage`, `generateLiteratureReview`, `analyzeData`,
 `generateBibliography`, `refineArchitecturePart`). No partial or malformed LLM
 output reaches application state.
+
+### Providers (`src/lib/providers.ts`)
+
+| id | Provider | Dialect | Key prefix |
+|----|----------|---------|------------|
+| `openrouter` | OpenRouter | openai | `sk-or-v1-` |
+| `nvidia` | NVIDIA NIM | openai | `nvapi-` |
+| `openai` | OpenAI | openai | `sk-` |
+| `anthropic` | Anthropic | **anthropic** | `sk-ant-` |
+| `groq` | Groq | openai | `gsk_` |
+| `mistral` | Mistral | openai | — |
+
+**Omni filter:** a model is offered only when it accepts `text` **and** `image`
+input — Phase 2/3 send images and long documents, so a text-only model would
+fail or hallucinate. When the provider publishes capability data (OpenRouter's
+`input_modalities` / `supported_parameters`) it is used verbatim; otherwise the
+local curated `omniModelMatchers` list filters the provider's own ids and the
+model is flagged `verified: false`, which the UI surfaces as
+"capacités non publiées par l'API".
+
+**Anthropic adapter:** `x-api-key` + `anthropic-version` headers, the `system`
+prompt is lifted out of `messages`, image parts are converted from
+`image_url` to `{ type: 'image', source: { base64 } }`, and the response is read
+from the content-block array.
 
 ## 5. Data model
 

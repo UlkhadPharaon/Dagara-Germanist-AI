@@ -9,6 +9,24 @@ with `;` separators, not `&&`).
 
 ---
 
+## Round 3 — Bring your own API key (2026-11-07, evening)
+
+| Request | Status | Evidence |
+|---------|--------|----------|
+| Users supply their own API key | ✅ Done | `src/lib/providers.ts` + `src/lib/ai-config.ts` + `src/components/AiSettingsModal.tsx`: six providers (OpenRouter, NVIDIA NIM, OpenAI, Anthropic, Groq, Mistral), masked key field stored in this browser only, direct browser → provider calls. |
+| Model list per provider | ✅ Done | Live list from the provider's own `/models` endpoint; `providers` test suite mocks OpenRouter's shape. |
+| Omni-only models | ✅ Done | Text-only models are filtered out (`text+image` input required, since Phase 2/3 send images and long documents). OpenRouter's published `input_modalities` + `supported_parameters` are used when available; OpenAI/NVIDIA/Anthropic/Groq/Mistral are filtered against a curated multimodal matcher list and flagged "capacités non publiées par l'API". Tool-calling models are listed first; a model without them is kept but marked. |
+
+**Verification (round 3):** typecheck 0 · lint 0/0 · **163 tests / 13 suites** · coverage **75.62 %** · build 31 s · browser check: dialog opens with 6 providers, key masked, text-only models excluded from the list, save persists the config, the header switches to the BYOK model and hides the proxy selector, "Retirer ma clé" restores the default mode.
+
+### Bugs found and fixed while testing round 3
+
+1. **Anthropic URL doubled its `/v1`** — `https://api.anthropic.com/v1` + `/v1/messages`. Caught by the provider test suite.
+2. **Model list sorted a tool-less model ahead of tool-capable ones** in one branch — assertion corrected and ordering made explicit.
+3. Test-only issues (self-referential helper, `setNative` on `<select>`) — harness fixes.
+
+---
+
 ## Round 2 — FCFA pricing · user documents · field research (2026-11-07, pm)
 
 | Request | Status | Evidence |

@@ -18,6 +18,7 @@ import ProgressStepper from './components/ProgressStepper';
 import PhaseBoundary from './components/PhaseBoundary';
 import AuthModal from './components/AuthModal';
 import ResourcesPanel from './components/ResourcesPanel';
+import AiSettingsModal from './components/AiSettingsModal';
 
 // Phase 3 (Recharts + html-to-image + jsPDF) and Phase 4 are the heaviest
 // screens; loading them on demand keeps the first paint small.
@@ -108,6 +109,9 @@ export default function App() {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmRequest | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [showResources, setShowResources] = useState(false);
+  const [showAiSettings, setShowAiSettings] = useState(false);
+  /** Bumped when the BYOK configuration changes, to refresh the header label. */
+  const [aiConfigVersion, setAiConfigVersion] = useState(0);
 
   // --- Toast plumbing -------------------------------------------------------
   useEffect(() => {
@@ -368,6 +372,8 @@ export default function App() {
           onModelChange={handleModelChange}
           onLanguageChange={language => setProject({ language })}
           onProjectNameChange={name => setProject({ name })}
+          onOpenAiSettings={() => setShowAiSettings(true)}
+          aiConfigVersion={aiConfigVersion}
         />
 
         {activeTab !== 'history' && (
@@ -460,6 +466,12 @@ export default function App() {
       <ConfirmDialog request={confirmDialog} onCancel={() => setConfirmDialog(null)} />
 
       <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+
+      <AiSettingsModal
+        isOpen={showAiSettings}
+        onClose={() => setShowAiSettings(false)}
+        onConfigChange={() => setAiConfigVersion(previous => previous + 1)}
+      />
 
       <ResourcesPanel
         isOpen={showResources}

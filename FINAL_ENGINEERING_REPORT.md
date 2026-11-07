@@ -8,7 +8,40 @@
 
 ---
 
-## 0. Round 2 additions (FCFA pricing, user documents, field research)
+## 0. Work delivered (three rounds)
+
+| Round | Request | Status |
+|-------|---------|--------|
+| 1 | The eight-phase master plan (`TO_READ/05`) | 6 phases complete, 2 partial — see §1–§8 |
+| 2 | Pricing in Franc CFA · users can add their own files/data · inspector questionnaire | ✅ Complete |
+| 3 | Users bring their own API key, per-provider model lists, omni-capable models only | ✅ Complete |
+
+### Round 3 — bring your own key (`src/lib/providers.ts`, `ai-config.ts`, `AiSettingsModal.tsx`)
+
+Six providers, all reachable from the browser: **OpenRouter, NVIDIA NIM, OpenAI,
+Anthropic, Groq, Mistral**.
+
+| Decision | Rationale |
+|----------|-----------|
+| Only models accepting **text + image** input are offered | Phase 2/3 send images (textbook photos, scanned questionnaires) and long documents; a text-only model would fail or hallucinate |
+| Capability data is never invented | OpenRouter publishes `input_modalities` / `supported_parameters`, which are used verbatim; OpenAI/NVIDIA/Anthropic/Groq/Mistral are filtered against a curated multimodal matcher and flagged "capacités non publiées par l'API" |
+| Tool-calling models are listed first | They make structured output and future agent flows reliable; a tool-less model is kept but marked "(sans tool calling)" |
+| Anthropic gets its own adapter | It is not OpenAI-compatible: `x-api-key`, the `system` prompt lifted out of `messages`, `image_url` → `{type:'image',source:{base64}}`, response read from the content-block array |
+| The key never transits our servers | BYOK requests go straight from the browser to the provider; the bundled proxy is only used in default mode |
+| Default mode is preserved | Without a key, the app behaves exactly as before — the header shows the proxy model selector again once the key is removed |
+
+Verified in Chrome: the panel lists only `GPT-4o` and `GPT-4o mini` from a mock
+catalogue that also contained two text-only models; saving swaps the header to
+the chosen model and hides the proxy selector; "Retirer ma clé" restores default
+mode and clears every stored trace of the key.
+
+**Bug caught by the tests:** the Anthropic URL was doubled
+(`https://api.anthropic.com/v1` + `/v1/messages`) — would have 404'd on every
+Anthropic call.
+
+---
+
+## 1. Verification summary
 
 Three follow-up requests were delivered on top of the eight phases below.
 

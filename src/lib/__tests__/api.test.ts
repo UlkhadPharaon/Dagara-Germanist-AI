@@ -1,4 +1,6 @@
 ﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAiConfig, setAiConfig } from '../ai-config';
+import { GENERATION_SETTINGS } from '../constants';
 import {
   AiServiceError,
   analyzeData,
@@ -40,6 +42,12 @@ const errorResponse = (status: number, message: string): Response =>
   });
 
 let fetchMock: ReturnType<typeof vi.fn>;
+
+/** Parses the JSON body of a mocked request call. */
+function parseBody(init: RequestInit): Record<string, unknown> {
+  if (typeof init.body !== 'string') throw new Error('Corps de requête absent.');
+  return JSON.parse(init.body) as Record<string, unknown>;
+}
 
 /** Body of the n-th request sent through the mocked fetch. */
 function requestBody(callIndex: number): {
@@ -296,6 +304,88 @@ describe('business wrappers', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// BYOK routing
+// ---------------------------------------------------------------------------
+
+describe('BYOK routing', () => {
+  it('has no key by default and uses the app proxy', async () => {
+    fetchMock.mockResolvedValue(okResponse(completion('defaut')));
+
+    await generateText('question');
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/nvidia/chat/completions');
+  });
+
+  it('calls the chosen provider directly once a key is configured', async () => {
+    setAiConfig({ providerId: 'openrouter', apiKey: 'sk-or-v1-test', modelId: 'openai/gpt-4o' });
+    fetchMock.mockResolvedValue(okResponse(completion('byok')));
+
+    const result = await generateText('question');
+
+    expect(result).toBe('byok');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer sk-or-v1-test');
+
+    const body = parseBody(init);
+    expect(body.model).toBe('openai/gpt-4o');
+
+    clearAiConfig();
+  });
+
+  it('sends the Anthropic request shape with the key in x-api-key', async () => {
+    setAiConfig({ providerId: 'anthropic', apiKey: 'sk-ant-test', modelId: 'claude-sonnet-4' });
+    // Anthropic answers with a content-block array.
+    fetchMock.mockResolvedValue(okResponse({ content: [{ type: 'text', text: 'salut' }] }));
+
+    const result = await generateText('question', 'consigne systeme');
+
+    expect(result).toBe('salut');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.anthropic.com/v1/messages');
+
+    const headers = init.headers as Record<string, string>;
+    expect(headers['x-api-key']).toBe('sk-ant-test');
+    expect(headers.Authorization).toBeUndefined();
+
+    const body = parseBody(init);
+    expect(body.system).toBe('consigne systeme');
+    expect(body.max_tokens).toBe(GENERATION_SETTINGS.maxTokens);
+
+    clearAiConfig();
+  });
+
+  it('explains a browser-side cross-origin failure for BYOK', async () => {
+    setAiConfig({ providerId: 'openrouter', apiKey: 'sk-or-v1-test', modelId: 'openai/gpt-4o' });
+
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      const promise = generateText('x');
+      const assertion = expect(promise).rejects.toThrow(/openrouter.ai/);
+      await vi.runAllTimersAsync();
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+      clearAiConfig();
+    }
+  });
+
+  it('forwards an upstream refusal with its status', async () => {
+    setAiConfig({ providerId: 'openai', apiKey: 'sk-test', modelId: 'gpt-4o' });
+    fetchMock.mockResolvedValue(errorResponse(429, 'rate limit reached'));
+
+    await expect(generateText('x')).rejects.toThrow(AiServiceError);
+
+    clearAiConfig();
+  });
+});
+
 describe('setSelectedModel', () => {
   it('persists the chosen model for subsequent calls', async () => {
     setSelectedModel('meta/llama-3.1-8b-instruct');
@@ -303,7 +393,8 @@ describe('setSelectedModel', () => {
 
     await generateText('x');
 
-    expect(requestBody(0).model).toBe('meta/llama-3.1-8b-instruct');
+    const body = requestBody(0);
+    expect(body.model).toBe('meta/llama-3.1-8b-instruct');
   });
 });
 

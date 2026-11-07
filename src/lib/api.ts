@@ -33,6 +33,13 @@ import {
   unwrapSchemaEcho,
 } from './json-parser';
 import { buildResourceContext, MAX_CHARS_PER_RESOURCE, truncateResource } from './resources';
+import { getAiConfig } from './ai-config';
+import {
+  buildProviderTarget,
+  getProvider,
+  readCompletionText,
+  type CompletionRequest,
+} from './providers';
 import { readString, writeString } from './storage';
 
 // ---------------------------------------------------------------------------
@@ -62,20 +69,6 @@ export interface ChatMessage {
 
 /** Accepted input shapes for the text/JSON wrappers. */
 export type GenerateInput = string | { parts: ContentPart[] };
-
-export interface ChatCompletionRequest {
-  model: string;
-  messages: ChatMessage[];
-  temperature: number;
-  top_p: number;
-  max_tokens: number;
-  response_format?: { type: 'json_object' };
-}
-
-interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string | null } }>;
-  usage?: { total_tokens?: number };
-}
 
 /** Kept for backwards compatibility with existing prompt schema objects. */
 export const SchemaType = {
@@ -109,9 +102,23 @@ export function resolveApiBaseUrl(): string {
   return origin ? `${origin}${relative}` : relative;
 }
 
+/**
+ * The model used for the next call.
+ *
+ * BYOK mode wins when a provider + key + model is configured; otherwise the
+ * bundled-proxy model (persisted in `dagara-ai-model`) is used.
+ */
 export function getSelectedModel(): string {
-  const stored = readString(STORAGE_KEYS.aiModel);
-  return stored ?? DEFAULT_AI_MODEL;
+  const byok = getAiConfig();
+  if (byok) return byok.modelId;
+  return readString(STORAGE_KEYS.aiModel) ?? DEFAULT_AI_MODEL;
+}
+
+/** Which model is presented in the header: BYOK model or the proxy default. */
+export function getActiveModelLabel(): { model: string; providerId: string | null } {
+  const byok = getAiConfig();
+  if (byok) return { model: byok.modelId, providerId: byok.providerId };
+  return { model: readString(STORAGE_KEYS.aiModel) ?? DEFAULT_AI_MODEL, providerId: null };
 }
 
 export function setSelectedModel(model: string): void {
@@ -225,24 +232,62 @@ function statusOf(error: unknown): number | undefined {
 }
 
 /**
- * Single low-level call: POST an OpenAI-compatible body to the proxy and
- * normalise the result into the assistant message content.
+ * Single low-level call.
+ *
+ * Two modes:
+ *  - **BYOK** (a provider + key + model is configured): the request goes
+ *    straight from the browser to that provider, in that provider's dialect.
+ *  - **Default**: the app's own `/api/nvidia` proxy, which holds the key
+ *    server-side and speaks the OpenAI dialect.
  */
-async function createChatCompletion(body: ChatCompletionRequest): Promise<string> {
+async function createChatCompletion(body: CompletionRequest): Promise<string> {
+  const byok = getAiConfig();
+
+  let target: {
+    url: string;
+    headers: Record<string, string>;
+    body: unknown;
+    dialect: 'openai' | 'anthropic';
+  };
+
+  if (byok) {
+    const provider = getProvider(byok.providerId);
+    if (!provider) {
+      throw new AiServiceError(
+        `Fournisseur « ${byok.providerId} » inconnu. Reconfigurez votre clé dans les réglages IA.`
+      );
+    }
+    target = buildProviderTarget(provider, byok.apiKey, { ...body, model: byok.modelId });
+  } else {
+    target = {
+      url: `${resolveApiBaseUrl()}/chat/completions`,
+      headers: { 'Content-Type': 'application/json' },
+      body: {
+        model: body.model,
+        messages: body.messages,
+        temperature: body.temperature,
+        top_p: body.topP,
+        max_tokens: body.maxTokens,
+        ...(body.responseFormat ? { response_format: body.responseFormat } : {}),
+      },
+      dialect: 'openai',
+    };
+  }
+
   let response: Response;
 
   try {
-    response = await fetch(`${resolveApiBaseUrl()}/chat/completions`, {
+    response = await fetch(target.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: target.headers,
+      body: JSON.stringify(target.body),
     });
   } catch (error) {
-    throw new AiServiceError(toUserMessage(error));
-  }
-
-  if (!response) {
-    throw new AiServiceError("Impossible de contacter le service d'IA.");
+    // A browser-side cross-origin failure is the most common BYOK problem.
+    const hint = byok
+      ? ` (requête directe vers ${target.url} : vérifiez votre connexion et que le fournisseur autorise les appels depuis le navigateur)`
+      : '';
+    throw new AiServiceError(`${toUserMessage(error)}${hint}`);
   }
 
   const rawText = await response.text();
@@ -251,18 +296,17 @@ async function createChatCompletion(body: ChatCompletionRequest): Promise<string
     throw new AiServiceError(toUpstreamMessage(rawText, response.status), response.status);
   }
 
-  let payload: ChatCompletionResponse;
+  let payload: unknown;
   try {
-    const parsed: unknown = JSON.parse(rawText);
-    payload = parsed as ChatCompletionResponse;
+    payload = JSON.parse(rawText);
   } catch {
     throw new AiServiceError(
-      'Le proxy a renvoyé une réponse illisible. Vérifiez la configuration du service.',
+      'Le service a renvoyé une réponse illisible. Vérifiez la configuration.',
       response.status
     );
   }
 
-  const content = payload.choices?.[0]?.message?.content;
+  const content = readCompletionText(payload, target.dialect);
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw new AiServiceError(
       "L'IA n'a pas renvoyé de réponse. Veuillez réessayer.",
@@ -321,13 +365,15 @@ function buildMessages(
   return messages;
 }
 
-function baseRequest(messages: ChatMessage[]): Omit<ChatCompletionRequest, 'response_format'> {
+function baseRequest(
+  messages: ChatMessage[]
+): Pick<CompletionRequest, 'model' | 'messages' | 'temperature' | 'topP' | 'maxTokens'> {
   return {
     model: getSelectedModel(),
     messages,
     temperature: GENERATION_SETTINGS.text.temperature,
-    top_p: GENERATION_SETTINGS.text.topP,
-    max_tokens: GENERATION_SETTINGS.maxTokens,
+    topP: GENERATION_SETTINGS.text.topP,
+    maxTokens: GENERATION_SETTINGS.maxTokens,
   };
 }
 
@@ -390,7 +436,7 @@ export async function generateJSON<T = unknown>(
         ...baseRequest(buildMessages(systemInstruction, content)),
         // Structured output: favour determinism over creativity.
         temperature: GENERATION_SETTINGS.json.temperature,
-        response_format: { type: 'json_object' },
+        responseFormat: { type: 'json_object' },
       });
     } catch (error) {
       if (isRateLimitError(error) || isTransientError(error)) continue;
