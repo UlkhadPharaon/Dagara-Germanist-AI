@@ -21,6 +21,22 @@ cp .env.example .env     # remplir les clés (optionnel en mode par défaut)
 npm run dev              # http://localhost:5173
 ```
 
+> Le port **5173** est fixe : si un ancien serveur l'occupe encore, `npm run dev`
+> s'arrête avec un message clair au lieu de basculer en silence sur 5174.
+> Libérez le port (`Get-NetTCPConnection -LocalPort 5173` sous Windows pour
+> trouver le processus) ou arrêtez le serveur précédent.
+
+### En cas de plantage du serveur de dev
+
+Si Vite s'arrête sur une _« fatal error: unexpected signal during runtime
+execution »_, c'est le binaire natif d'esbuild (Go) qui s'est interrompu.
+Vider son cache suffit :
+
+```bash
+rm -rf node_modules/.vite
+npm run dev
+```
+
 ### Variables d'environnement
 
 | Variable                                       | Obligatoire                  | Usage                             |

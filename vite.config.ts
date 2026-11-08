@@ -18,9 +18,6 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     },
   },
-  server: {
-    hmr: process.env.DISABLE_HMR !== 'true',
-  },
   // Only the root HTML is an entry: `android/app/...` holds a previous web
   // build whose minified assets must not be scanned/parsed by esbuild.
   optimizeDeps: {
@@ -39,5 +36,12 @@ export default defineConfig({
       },
     },
     chunkSizeWarningLimit: 900,
+  },
+  server: {
+    hmr: process.env.DISABLE_HMR !== 'true',
+    // Fixed port, and refuse to move silently: a dev server that quietly
+    // appears on 5174 while docs say 5173 wastes everyone's time.
+    port: 5173,
+    strictPort: true,
   },
 });
