@@ -7,7 +7,7 @@
  */
 
 import type { ProjectData } from '../types';
-import { createCloudRepository } from './supabase';
+import { createCloudRepository } from './pocketbase';
 import { readJson, storageKeys, writeJson } from './storage';
 import { parseProjects } from './projects';
 

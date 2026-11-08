@@ -1,5 +1,5 @@
-﻿import { describe, expect, it } from 'vitest';
-import { isSupabaseConfigured, projectToRow, rowToProject } from '../supabase';
+import { describe, expect, it } from 'vitest';
+import { isPocketBaseConfigured, projectToRow, rowToProject } from '../pocketbase';
 import { createNewProject } from '../projects';
 import { first } from '../../test/helpers';
 import type { ProjectData } from '../../types';
@@ -40,9 +40,9 @@ const sampleProject = (): ProjectData => ({
   bibliography: [{ id: 'r1', citation: 'A. Auteur (2020). Titre.' }],
 });
 
-describe('isSupabaseConfigured', () => {
+describe('isPocketBaseConfigured', () => {
   it('is false in the test environment (no credentials)', () => {
-    expect(isSupabaseConfigured()).toBe(false);
+    expect(isPocketBaseConfigured()).toBe(false);
   });
 });
 
@@ -52,8 +52,8 @@ describe('projectToRow / rowToProject', () => {
     const restored = rowToProject({
       ...row,
       last_modified: new Date(sampleProject().lastModified).toISOString(),
-      updated_at: new Date(sampleProject().lastModified).toISOString(),
-      created_at: new Date(sampleProject().lastModified).toISOString(),
+      updated: new Date(sampleProject().lastModified).toISOString(),
+      created: new Date(sampleProject().lastModified).toISOString(),
     } as Parameters<typeof rowToProject>[0]);
 
     expect(restored.id).toBe('1700000000000');
@@ -76,7 +76,7 @@ describe('projectToRow / rowToProject', () => {
 
   it('writes the owner into the row', () => {
     const row = projectToRow(sampleProject(), USER_ID);
-    expect(row.user_id).toBe(USER_ID);
+    expect(row.owner).toBe(USER_ID);
     expect(row.id).toBe('1700000000000');
     expect(row.language).toBe('de');
   });
@@ -86,8 +86,8 @@ describe('projectToRow / rowToProject', () => {
     const restored = rowToProject({
       ...row,
       last_modified: new Date(0).toISOString(),
-      updated_at: new Date(0).toISOString(),
-      created_at: new Date(0).toISOString(),
+      updated: new Date(0).toISOString(),
+      created: new Date(0).toISOString(),
     } as Parameters<typeof rowToProject>[0]);
 
     expect(first(restored.analyses).charts).toHaveLength(1);
@@ -106,8 +106,8 @@ describe('projectToRow / rowToProject', () => {
       literature_review: null,
       bibliography_json: null,
       last_modified: new Date(0).toISOString(),
-      updated_at: new Date(0).toISOString(),
-      created_at: new Date(0).toISOString(),
+      updated: new Date(0).toISOString(),
+      created: new Date(0).toISOString(),
     } as Parameters<typeof rowToProject>[0]);
 
     expect(restored).not.toHaveProperty('literatureReview');
@@ -139,8 +139,8 @@ describe('projectToRow / rowToProject', () => {
         },
       ],
       last_modified: new Date(0).toISOString(),
-      updated_at: new Date(0).toISOString(),
-      created_at: new Date(0).toISOString(),
+      updated: new Date(0).toISOString(),
+      created: new Date(0).toISOString(),
     } as Parameters<typeof rowToProject>[0]);
 
     expect(first(first(restored.analyses).charts).data).toEqual([{ name: 'B', value: 4 }]);

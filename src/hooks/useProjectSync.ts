@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectData } from '../types';
-import { createCloudRepository, saveProjectVersion, type ProjectRepository } from '../lib/supabase';
+import { createCloudRepository, saveProjectVersion, type ProjectRepository } from '../lib/pocketbase';
 import { readLocalProjects, migrateLocalProjectsToCloud } from '../lib/migration';
 import { readJson, storageKeys } from '../lib/storage';
 import { createNewProject } from '../lib/projects';

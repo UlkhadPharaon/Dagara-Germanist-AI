@@ -1,5 +1,5 @@
 /**
- * Supabase client + repository.
+ * PocketBase client + repository.
  *
  * Cloud mode is opt-in through environment variables. When they are absent (or
  * no user is signed in) every function degrades to the local storage backend,
@@ -7,12 +7,16 @@
  * configuration.
  *
  * Required variables:
- *   VITE_SUPABASE_URL      — project URL
- *   VITE_SUPABASE_ANON_KEY — public anon key (safe to ship to the browser)
- *   SUPABASE_SERVICE_ROLE_KEY — server-only, never prefixed with VITE_
+ *   VITE_POCKETBASE_URL — instance URL (e.g. https://dagara.185-7-81-99.sslip.io)
+ *
+ * The instance schema (created by the provisioning script):
+ *   users            — auth collection (email/password), PB default
+ *   projects         — owner-scoped project rows (owner = users relation)
+ *   project_versions — owner-scoped version snapshots
+ *   generations      — owner-scoped AI generation log
  */
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import PocketBase, { type ClientResponseError } from 'pocketbase';
 import type {
   BibliographyEntry,
   ChartData,
@@ -22,35 +26,22 @@ import type {
 } from '../types';
 import { HISTORY_LIMIT } from './constants';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL;
 
-/** True when the build carries usable Supabase credentials. */
-export function isSupabaseConfigured(): boolean {
-  return (
-    typeof SUPABASE_URL === 'string' &&
-    SUPABASE_URL.length > 0 &&
-    typeof SUPABASE_ANON_KEY === 'string' &&
-    SUPABASE_ANON_KEY.length > 0
-  );
+/** True when the build carries a usable PocketBase URL. */
+export function isPocketBaseConfigured(): boolean {
+  return typeof POCKETBASE_URL === 'string' && POCKETBASE_URL.length > 0;
 }
 
-let client: SupabaseClient | null = null;
+let client: PocketBase | null = null;
 
 /** Lazily created singleton — never throws when unconfigured. */
-export function getSupabase(): SupabaseClient | null {
-  if (!isSupabaseConfigured()) return null;
+export function getPocketBase(): PocketBase | null {
+  if (!isPocketBaseConfigured()) return null;
   if (!client) {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    if (typeof url !== 'string' || typeof anonKey !== 'string') return null;
-    client = createClient(url, anonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    });
+    client = new PocketBase(POCKETBASE_URL);
+    // Collapse duplicate in-flight requests (React Strict Mode double-effects).
+    client.autoCancellation(true);
   }
   return client;
 }
@@ -65,13 +56,33 @@ export interface AuthSession {
   accessToken: string;
 }
 
+/** Error thrown by the PocketBase SDK on a non-2xx response. */
+function isClientError(error: unknown): error is ClientResponseError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof error.status === 'number'
+  );
+}
+
+function statusOf(error: unknown): number | undefined {
+  return isClientError(error) ? error.status : undefined;
+}
+
+/** 404 = the record does not exist yet (upsert path inserts instead). */
+function isNotFound(error: unknown): boolean {
+  return statusOf(error) === 404;
+}
+
 // ---------------------------------------------------------------------------
 // Row ↔ model mapping
 // ---------------------------------------------------------------------------
 
 interface ProjectRow {
   id: string;
-  user_id: string;
+  /** Relation to the `users` collection (replaces Supabase's user_id column). */
+  owner: string;
   name: string;
   last_modified: string;
   subject: string;
@@ -86,8 +97,8 @@ interface ProjectRow {
   analyses_json: unknown;
   bibliography_json: unknown;
   resources_json: unknown;
-  created_at: string;
-  updated_at: string;
+  created?: string;
+  updated?: string;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -170,7 +181,7 @@ export function rowToProject(row: ProjectRow): ProjectData {
   return {
     id: row.id,
     name: row.name,
-    lastModified: new Date(row.last_modified ?? row.updated_at).getTime(),
+    lastModified: new Date(row.last_modified ?? row.updated).getTime(),
     subject: row.subject,
     cycle: row.cycle,
     context: row.context,
@@ -235,7 +246,8 @@ function theoriesOf(literature: Record<string, unknown>): unknown {
 export function projectToRow(project: ProjectData, userId: string): Record<string, unknown> {
   return {
     id: project.id,
-    user_id: userId,
+    // PocketBase relation column (replaces Supabase's user_id)
+    owner: userId,
     name: project.name,
     last_modified: new Date(project.lastModified).toISOString(),
     subject: project.subject,
@@ -265,56 +277,72 @@ export interface ProjectRepository {
 
 /** Creates the cloud repository for a signed-in user. */
 export function createCloudRepository(userId: string): ProjectRepository | null {
-  const supabase = getSupabase();
-  if (!supabase) return null;
+  const pocketbase = getPocketBase();
+  if (!pocketbase) return null;
 
   return {
     async loadProjects(): Promise<ProjectData[]> {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('last_modified', { ascending: false });
-
-      if (error) throw new Error(`Chargement des projets impossible : ${error.message}`);
-      return (data as ProjectRow[] | null)?.map(rowToProject) ?? [];
+      try {
+        const records = await pocketbase.collection('projects').getFullList({
+          sort: '-last_modified',
+        });
+        return records.map(record => rowToProject(record as unknown as ProjectRow));
+      } catch (error) {
+        throw new Error(`Chargement des projets impossible : ${messageOf(error)}`, { cause: error });
+      }
     },
 
     async saveProject(project: ProjectData): Promise<void> {
       const row = projectToRow(project, userId);
-      const { error } = await supabase.from('projects').upsert(row, { onConflict: 'id' });
-      if (error) throw new Error(`Enregistrement du projet impossible : ${error.message}`);
+      try {
+        // PocketBase has no native upsert: update, and insert when the record
+        // does not exist yet (404).
+        await pocketbase.collection('projects').update(project.id, row);
+      } catch (error) {
+        if (!isNotFound(error)) {
+          throw new Error(`Enregistrement du projet impossible : ${messageOf(error)}`, {
+            cause: error,
+          });
+        }
+        try {
+          await pocketbase.collection('projects').create(row);
+        } catch (createError) {
+          throw new Error(`Enregistrement du projet impossible : ${messageOf(createError)}`, {
+            cause: createError,
+          });
+        }
+      }
     },
 
     async deleteProject(projectId: string): Promise<void> {
-      const { error } = await supabase.from('projects').delete().eq('id', projectId);
-      if (error) throw new Error(`Suppression du projet impossible : ${error.message}`);
+      try {
+        await pocketbase.collection('projects').delete(projectId);
+      } catch (error) {
+        throw new Error(`Suppression du projet impossible : ${messageOf(error)}`, { cause: error });
+      }
     },
   };
 }
 
 /** Writes a full snapshot so any previous version can be restored. */
 export async function saveProjectVersion(project: ProjectData, userId: string): Promise<void> {
-  const supabase = getSupabase();
-  if (!supabase) return;
+  const pocketbase = getPocketBase();
+  if (!pocketbase) return;
 
-  const { count, error: countError } = await supabase
-    .from('project_versions')
-    .select('id', { count: 'exact', head: true })
-    .eq('project_id', project.id);
+  try {
+    const page = await pocketbase.collection('project_versions').getList(1, 1, {
+      filter: `project_id = "${project.id}"`,
+    });
 
-  if (countError) {
-    console.error('Comptage des versions impossible :', countError.message);
-    return;
+    await pocketbase.collection('project_versions').create({
+      project_id: project.id,
+      owner: userId,
+      snapshot: project,
+      version_number: page.totalItems + 1,
+    });
+  } catch (error) {
+    console.error('Enregistrement de la version impossible :', messageOf(error));
   }
-
-  const { error } = await supabase.from('project_versions').insert({
-    project_id: project.id,
-    user_id: userId,
-    snapshot: project,
-    version_number: (count ?? 0) + 1,
-  });
-
-  if (error) console.error('Enregistrement de la version impossible :', error.message);
 }
 
 /** Records one AI generation for usage tracking / future quotas. */
@@ -328,21 +356,23 @@ export async function logGeneration(entry: {
   status: 'success' | 'failed' | 'cancelled';
   errorMessage?: string;
 }): Promise<void> {
-  const supabase = getSupabase();
-  if (!supabase) return;
+  const pocketbase = getPocketBase();
+  if (!pocketbase) return;
 
-  const { error } = await supabase.from('generations').insert({
-    user_id: entry.userId,
-    project_id: entry.projectId ?? null,
-    phase: entry.phase,
-    tool_type: entry.toolType ?? null,
-    model_used: entry.modelUsed ?? null,
-    tokens_estimated: entry.tokensEstimated ?? null,
-    status: entry.status,
-    error_message: entry.errorMessage ?? null,
-  });
-
-  if (error) console.error('Journalisation de génération impossible :', error.message);
+  try {
+    await pocketbase.collection('generations').create({
+      owner: entry.userId,
+      project_id: entry.projectId ?? '',
+      phase: entry.phase,
+      tool_type: entry.toolType ?? '',
+      model_used: entry.modelUsed ?? '',
+      tokens_estimated: entry.tokensEstimated ?? 0,
+      status: entry.status,
+      error_message: entry.errorMessage ?? '',
+    });
+  } catch (error) {
+    console.error('Journalisation de génération impossible :', messageOf(error));
+  }
 }
 
 /** Most recent action logs. Diagnostic history stays device-local for now. */
@@ -351,3 +381,10 @@ export function historyLogsLocalOnly(): HistoryLog[] {
 }
 
 export const historyLimit = HISTORY_LIMIT;
+
+/** Human-readable message for any thrown value (PB errors carry a message). */
+function messageOf(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (isClientError(error)) return error.message;
+  return String(error);
+}

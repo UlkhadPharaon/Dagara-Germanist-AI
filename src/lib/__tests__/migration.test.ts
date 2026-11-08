@@ -1,17 +1,17 @@
 ﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The migration must be testable without a real Supabase project, so the client
-// factory is mocked.
+// The migration must be testable without a real PocketBase instance, so the
+// client factory is mocked.
 const saveProject = vi.fn(() => Promise.resolve(undefined));
 const deleteProject = vi.fn(() => Promise.resolve(undefined));
 const loadProjects = vi.fn(() => Promise.resolve([]) as Promise<unknown[]>);
 
-vi.mock('../supabase', () => ({
+vi.mock('../pocketbase', () => ({
   createCloudRepository: () => ({ loadProjects, saveProject, deleteProject }),
   saveProjectVersion: vi.fn(() => Promise.resolve(undefined)),
   logGeneration: vi.fn(() => Promise.resolve(undefined)),
-  isSupabaseConfigured: () => true,
-  getSupabase: () => null,
+  isPocketBaseConfigured: () => true,
+  getPocketBase: () => null,
   historyLogsLocalOnly: () => [],
   historyLimit: 50,
   projectToRow: (project: unknown) => project,
